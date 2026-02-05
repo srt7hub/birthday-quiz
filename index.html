@@ -10,20 +10,19 @@
   <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <style>
+  <style>
     :root {
       --bg: #0f172a;
       --card: #111827;
       --accent: #22c55e;
-      --accent-wrong: #ef4444;
+      --wrong: #ef4444;
+      --primary: #3b82f6;
       --text: #f9fafb;
       --muted: #9ca3af;
     }
-  
-    * {
-      box-sizing: border-box;
-    }
-  
+
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
       padding: 16px;
@@ -31,20 +30,25 @@
       background: var(--bg);
       color: var(--text);
     }
-  
-    h2 {
-      font-size: 22px;
-      margin-bottom: 16px;
-      line-height: 1.3;
+
+    .app {
+      max-width: 520px;
+      margin: 0 auto;
     }
-  
+
     .card {
       background: var(--card);
-      border-radius: 16px;
-      padding: 16px;
+      border-radius: 18px;
+      padding: 18px;
       margin-bottom: 16px;
     }
-  
+
+    h2 {
+      font-size: 22px;
+      margin: 0 0 16px;
+      line-height: 1.3;
+    }
+
     .answer-btn {
       width: 100%;
       padding: 16px;
@@ -52,115 +56,86 @@
       font-size: 18px;
       border-radius: 14px;
       border: none;
-      background: #1f2933;
+      background: #1f2937;
       color: var(--text);
       cursor: pointer;
       transition: transform 0.05s ease, background 0.2s;
     }
-  
-    .answer-btn:active {
-      transform: scale(0.98);
-    }
-  
-    .answer-btn:disabled {
-      opacity: 0.6;
-    }
-  
+
+    .answer-btn:active { transform: scale(0.97); }
+    .answer-btn:disabled { opacity: 0.6; }
+
     .correct {
       background: var(--accent) !important;
       color: #022c22;
       font-weight: bold;
     }
-  
+
     .wrong {
-      background: var(--accent-wrong) !important;
+      background: var(--wrong) !important;
       color: #450a0a;
       font-weight: bold;
     }
-  
+
     #nextBtn {
       width: 100%;
       padding: 16px;
       font-size: 18px;
       border-radius: 14px;
       border: none;
-      background: #3b82f6;
+      background: var(--primary);
       color: white;
       margin-top: 12px;
       display: none;
     }
-  
-    /* РЕЙТИНГ */
+
     .rating-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 14px;
+      padding: 14px;
       margin: 8px 0;
-      background: #1f2933;
-      border-radius: 12px;
+      background: #1f2937;
+      border-radius: 14px;
       font-size: 16px;
     }
-  
-    .place {
-      font-weight: bold;
-      margin-right: 8px;
-    }
-  
+
     .gold { background: linear-gradient(135deg, #facc15, #f59e0b); color: #422006; }
     .silver { background: linear-gradient(135deg, #e5e7eb, #9ca3af); color: #111827; }
     .bronze { background: linear-gradient(135deg, #fdba74, #fb923c); color: #431407; }
-  
-    .center {
-      text-align: center;
-    }
-  
-    @media (min-width: 768px) {
-      body {
-        max-width: 520px;
-        margin: 0 auto;
-      }
-    }
+
+    .center { text-align: center; }
   </style>
 </head>
-<body>
 
-<div class="card">
-  <h2 id="question"></h2>
-  <div id="answers"></div>
-  <button id="nextBtn" onclick="nextQuestion()">➡ Следующий вопрос</button>
+<body>
+<div class="app">
+
+  <div class="card">
+    <h2 id="question"></h2>
+    <div id="answers"></div>
+    <button id="nextBtn" onclick="nextQuestion()">➡ Следующий вопрос</button>
+  </div>
+
+  <div id="result"></div>
+
 </div>
 
-<div id="result"></div>
-
-<button id="nextBtn" onclick="nextQuestion()">➡ Следующий вопрос</button>
-
-<div id="result"></div>
-
 <script>
-  // ===============================
   // TELEGRAM
-  // ===============================
   const tg = window.Telegram.WebApp;
   tg.ready();
   tg.expand();
 
   const userName = tg.initDataUnsafe?.user?.first_name || 'Гость';
 
-  // ===============================
   // SUPABASE
-  // ===============================
-  const SUPABASE_URL = 'https://tbvgqxfirapjfxnsuhff.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_W6Ri_ocuTRQC7gAtDLW0KQ_T2zzIngx';
-
-  const supabaseClient = supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_KEY
+  const supabase = window.supabase.createClient(
+    'https://tbvgqxfirapjfxnsuhff.supabase.co',
+    'sb_publishable_W6Ri_ocuTRQC7gAtDLW0KQ_T2zzIngx'
   );
 
-  // ===============================
-  // ВОПРОСЫ
-  // ===============================
+  // QUESTIONS
   const questions = [
     {
       text: 'Кем я хотела стать в детстве?',
@@ -189,43 +164,37 @@
     }
   ];
 
-  let currentQuestion = 0;
+  let current = 0;
   let score = 0;
-  let answered = false;
+  let locked = false;
 
   const questionEl = document.getElementById('question');
   const answersEl = document.getElementById('answers');
   const nextBtn = document.getElementById('nextBtn');
   const resultEl = document.getElementById('result');
 
-  // ===============================
-  // РЕНДЕР ВОПРОСА
-  // ===============================
   function renderQuestion() {
-    answered = false;
+    locked = false;
     answersEl.innerHTML = '';
     nextBtn.style.display = 'none';
 
-    const q = questions[currentQuestion];
+    const q = questions[current];
     questionEl.textContent = `❓ ${q.text}`;
 
     q.answers.forEach((text, index) => {
       const btn = document.createElement('button');
       btn.className = 'answer-btn';
       btn.textContent = text;
-      btn.onclick = () => selectAnswer(index);
+      btn.onclick = () => answer(index);
       answersEl.appendChild(btn);
     });
   }
 
-  // ===============================
-  // ВЫБОР ОТВЕТА
-  // ===============================
-  async function selectAnswer(index) {
-    if (answered) return;
-    answered = true;
+  async function answer(index) {
+    if (locked) return;
+    locked = true;
 
-    const q = questions[currentQuestion];
+    const q = questions[current];
     const buttons = document.querySelectorAll('.answer-btn');
 
     buttons.forEach((b, i) => {
@@ -237,80 +206,68 @@
     const isCorrect = index === q.correct;
     if (isCorrect) score++;
 
-    nextBtn.style.display = 'block';
-
-    await supabaseClient.from('answers').insert({
+    await supabase.from('answers').insert({
       user_name: userName,
       question: q.text,
       answer: q.answers[index],
       is_correct: isCorrect
     });
+
+    nextBtn.style.display = 'block';
   }
 
-  // ===============================
-  // СЛЕДУЮЩИЙ ВОПРОС
-  // ===============================
   function nextQuestion() {
-    currentQuestion++;
-    if (currentQuestion < questions.length) {
+    current++;
+    if (current < questions.length) {
       renderQuestion();
     } else {
       showResults();
     }
   }
 
-  // ===============================
-  // ФИНАЛЬНЫЙ РЕЙТИНГ
-  // ===============================
   async function showResults() {
     questionEl.textContent = '🏆 Результаты';
     answersEl.innerHTML = '';
     nextBtn.style.display = 'none';
 
-    const { data } = await supabaseClient
+    const { data } = await supabase
       .from('answers')
       .select('user_name, is_correct');
 
     const scores = {};
-
-    data.forEach(row => {
-      if (!scores[row.user_name]) scores[row.user_name] = 0;
-      if (row.is_correct) scores[row.user_name]++;
+    data.forEach(r => {
+      if (!scores[r.user_name]) scores[r.user_name] = 0;
+      if (r.is_correct) scores[r.user_name]++;
     });
 
-    const sorted = Object.entries(scores)
-      .sort((a, b) => b[1] - a[1]);
+    const sorted = Object.entries(scores).sort((a,b) => b[1]-a[1]);
 
     let html = `
-  <div class="card center">
-    <h2>🏆 Результаты</h2>
-    <p>Твой результат: <strong>${score}</strong> / ${questions.length}</p>
-  </div>
-`;
+      <div class="card center">
+        <h2>🎉 ${userName}, твой результат</h2>
+        <p><strong>${score}</strong> из ${questions.length}</p>
+      </div>
+    `;
 
-sorted.forEach(([name, points], index) => {
-  let cls = '';
-  let medal = index + 1;
+    sorted.forEach(([name, points], i) => {
+      let cls = '';
+      if (i === 0) cls = 'gold';
+      if (i === 1) cls = 'silver';
+      if (i === 2) cls = 'bronze';
 
-  if (index === 0) cls = 'gold';
-  if (index === 1) cls = 'silver';
-  if (index === 2) cls = 'bronze';
+      html += `
+        <div class="rating-item ${cls}">
+          <span>${i+1}. ${name}</span>
+          <span>${points} ⭐</span>
+        </div>
+      `;
+    });
 
-  html += `
-    <div class="rating-item ${cls}">
-      <span class="place">${medal}.</span>
-      <span>${name}</span>
-      <span>${points} ⭐</span>
-    </div>
-  `;
-});
+    resultEl.innerHTML = html;
+  }
 
-resultEl.innerHTML = html;
-
-  // старт
   renderQuestion();
 </script>
 
 </body>
 </html>
-
