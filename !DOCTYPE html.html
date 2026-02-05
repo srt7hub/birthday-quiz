@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Birthday Quiz</title>
+
+  <!-- Telegram Mini App API -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    button {
+      padding: 10px 16px;
+      font-size: 16px;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    ul {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>❓ Вопрос: Кофе или Чай?</h2>
+
+  <button id="btn-coffee" onclick="sendAnswer('Кофе')">☕ Кофе</button>
+  <button id="btn-tea" onclick="sendAnswer('Чай')">🍵 Чай</button>
+
+  <h3>📊 Ответы в реальном времени:</h3>
+  <ul id="answers"></ul>
+
+<script>
+  // ===============================
+  // 📱 TELEGRAM INIT
+  // ===============================
+  const tg = window.Telegram.WebApp;
+  tg.ready();
+  tg.expand(); // разворачиваем на весь экран
+
+  // ===============================
+  // 🔑 SUPABASE
+  // ===============================
+  const SUPABASE_URL = 'https://tbvgqxfirapjfxnsuhff.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_W6Ri_ocuTRQC7gAtDLW0KQ_T2zzIngx';
+
+  const supabaseClient = supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+  );
+
+  // ===============================
+  // 👤 ПОЛЬЗОВАТЕЛЬ
+  // ===============================
+  let userName = 'Гость';
+
+  if (tg.initDataUnsafe?.user) {
+    userName = tg.initDataUnsafe.user.first_name;
+  }
+
+  // ===============================
+  // 🔒 БЛОКИРОВКА
+  // ===============================
+  const btnCoffee = document.getElementById('btn-coffee');
+  const btnTea = document.getElementById('btn-tea');
+
+  if (localStorage.getItem('hasAnswered') === 'true') {
+    disableButtons();
+  }
+
+  function disableButtons() {
+    btnCoffee.disabled = true;
+    btnTea.disabled = true;
+  }
+
+  // ===============================
+  // 📤 ОТПРАВКА ОТВЕТА
+  // ===============================
+  async function sendAnswer(answer) {
+    if (localStorage.getItem('hasAnswered') === 'true') return;
+
+    disableButtons();
+    localStorage.setItem('hasAnswered', 'true');
+
+    const { error } = await supabaseClient
+      .from('answers')
+      .insert({
+        user_name: userName,
+        answer: answer
+      });
+
+    if (error) {
+      alert('Ошибка отправки, смотри Console');
+      console.error(error);
+    }
+  }
+
+  // ===============================
+  // 📥 ЗАГРУЗКА
+  // ===============================
+  async function loadAnswers() {
+    const { data } = await supabaseClient
+      .from('answers')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    render(data);
+  }
+
+  function render(data) {
+    const list = document.getElementById('answers');
+    list.innerHTML = '';
+
+    data.forEach(row => {
+      const li = document.createElement('li');
+      li.textContent = `${row.user_name}: ${row.answer}`;
+      list.appendChild(li);
+    });
+  }
+
+  // ===============================
+  // 🔴 REAL-TIME
+  // ===============================
+  supabaseClient
+    .channel('answers-realtime')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', table: 'answers' },
+      () => loadAnswers()
+    )
+    .subscribe();
+
+  loadAnswers();
+</script>
+
+</body>
+</html>
