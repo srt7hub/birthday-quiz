@@ -42,10 +42,7 @@
       margin-bottom: 16px;
     }
 
-    h2 {
-      font-size: 22px;
-      margin-bottom: 16px;
-    }
+    h2 { margin: 0 0 16px; }
 
     .answer-btn {
       width: 100%;
@@ -61,17 +58,8 @@
 
     .answer-btn:disabled { opacity: 0.6; }
 
-    .correct {
-      background: var(--accent) !important;
-      color: #022c22;
-      font-weight: bold;
-    }
-
-    .wrong {
-      background: var(--wrong) !important;
-      color: #450a0a;
-      font-weight: bold;
-    }
+    .correct { background: var(--accent) !important; color: #022c22; }
+    .wrong { background: var(--wrong) !important; color: #450a0a; }
 
     #nextBtn {
       width: 100%;
@@ -85,18 +73,8 @@
       display: none;
     }
 
-    .rating-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 14px;
-      margin: 8px 0;
-      background: #1f2937;
-      border-radius: 14px;
-    }
-
-    .gold { background: linear-gradient(135deg,#facc15,#f59e0b); color:#422006; }
-    .silver { background: linear-gradient(135deg,#e5e7eb,#9ca3af); color:#111827; }
-    .bronze { background: linear-gradient(135deg,#fdba74,#fb923c); color:#431407; }
+    ul { padding-left: 18px; }
+    li { margin: 6px 0; }
   </style>
 </head>
 
@@ -109,73 +87,89 @@
     <button id="nextBtn" onclick="nextQuestion()">➡ Следующий вопрос</button>
   </div>
 
-  <div id="result"></div>
+  <div class="card">
+    <h3>👀 Кто как ответил:</h3>
+    <ul id="liveAnswers"></ul>
+  </div>
 
 </div>
 
 <script>
+  // ===============================
   // TELEGRAM
+  // ===============================
   const tg = window.Telegram.WebApp;
   tg.ready();
   tg.expand();
 
   const userName = tg.initDataUnsafe?.user?.first_name || 'Гость';
 
-  // ✅ SUPABASE — ПРАВИЛЬНО
+  // ===============================
+  // SUPABASE
+  // ===============================
   const supabaseClient = supabase.createClient(
     'https://tbvgqxfirapjfxnsuhff.supabase.co',
     'sb_publishable_W6Ri_ocuTRQC7gAtDLW0KQ_T2zzIngx'
   );
 
+  // ===============================
+  // QUESTIONS
+  // ===============================
   const questions = [
     {
       text: 'Кем я хотела стать в детстве?',
-      answers: ['Врачом','Ветеринаром','Учителем','Миллионершей'],
+      answers: ['Врачом', 'Ветеринаром', 'Учителем', 'Миллионершей'],
       correct: 1
     },
     {
       text: 'Мой рост?',
-      answers: ['159','160','161','162'],
+      answers: ['159', '160', '161', '162'],
       correct: 2
     },
     {
       text: 'Кто мой краш?',
-      answers: ['Дима Масленников','Ваня Дмитриенко','Павел Прилучный','Фадис Идрисов'],
+      answers: ['Дима Масленников', 'Ваня Дмитриенко', 'Павел Прилучный', 'Фадис Идрисов'],
       correct: 0
     },
     {
       text: 'Откуда шрам на лбу?',
-      answers: ['Упала с забора','Камень','Велосипед','Качели'],
+      answers: ['Упала с забора', 'Камень', 'Велосипед', 'Качели'],
       correct: 2
     }
   ];
 
   let current = 0;
-  let score = 0;
   let locked = false;
 
   const qEl = document.getElementById('question');
   const aEl = document.getElementById('answers');
   const nextBtn = document.getElementById('nextBtn');
-  const resultEl = document.getElementById('result');
+  const liveList = document.getElementById('liveAnswers');
 
+  // ===============================
+  // RENDER QUESTION
+  // ===============================
   function render() {
     locked = false;
     aEl.innerHTML = '';
+    liveList.innerHTML = '';
     nextBtn.style.display = 'none';
 
     const q = questions[current];
     qEl.textContent = `❓ ${q.text}`;
 
-    q.answers.forEach((t,i)=>{
-      const b = document.createElement('button');
-      b.className = 'answer-btn';
-      b.textContent = t;
-      b.onclick = ()=>answer(i);
-      aEl.appendChild(b);
+    q.answers.forEach((text, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'answer-btn';
+      btn.textContent = text;
+      btn.onclick = () => answer(i);
+      aEl.appendChild(btn);
     });
   }
 
+  // ===============================
+  // ANSWER
+  // ===============================
   async function answer(i) {
     if (locked) return;
     locked = true;
@@ -183,56 +177,56 @@
     const q = questions[current];
     const btns = document.querySelectorAll('.answer-btn');
 
-    btns.forEach((b,idx)=>{
+    btns.forEach((b, idx) => {
       b.disabled = true;
-      if (idx===q.correct) b.classList.add('correct');
-      if (idx===i && i!==q.correct) b.classList.add('wrong');
+      if (idx === q.correct) b.classList.add('correct');
+      if (idx === i && i !== q.correct) b.classList.add('wrong');
     });
-
-    const ok = i===q.correct;
-    if (ok) score++;
 
     await supabaseClient.from('answers').insert({
-      user_name:userName,
-      question:q.text,
-      answer:q.answers[i],
-      is_correct:ok
+      user_name: userName,
+      question_index: current,
+      question: q.text,
+      answer: q.answers[i],
+      is_correct: i === q.correct
     });
 
-    nextBtn.style.display='block';
+    nextBtn.style.display = 'block';
   }
 
-  function nextQuestion(){
+  // ===============================
+  // NEXT QUESTION
+  // ===============================
+  function nextQuestion() {
     current++;
-    if(current<questions.length) render();
-    else showResults();
+    if (current < questions.length) {
+      render();
+    } else {
+      qEl.textContent = '🎉 Квиз завершён!';
+      aEl.innerHTML = '';
+      liveList.innerHTML = '';
+      nextBtn.style.display = 'none';
+    }
   }
 
-  async function showResults(){
-    qEl.textContent='🏆 Результаты';
-    aEl.innerHTML='';
-    nextBtn.style.display='none';
-
-    const {data}=await supabaseClient
-      .from('answers')
-      .select('user_name,is_correct');
-
-    const scores={};
-    data.forEach(r=>{
-      scores[r.user_name]=(scores[r.user_name]||0)+(r.is_correct?1:0);
-    });
-
-    const sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
-
-    let html=`<div class="card"><h2>${userName}, твой результат: ${score}/${questions.length}</h2></div>`;
-    sorted.forEach(([n,p],i)=>{
-      html+=`<div class="rating-item ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">
-        <span>${i+1}. ${n}</span><span>${p} ⭐</span>
-      </div>`;
-    });
-
-    resultEl.innerHTML=html;
-  }
+  // ===============================
+  // REAL-TIME LIVE ANSWERS
+  // ===============================
+  supabaseClient
+    .channel('live-answers')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', table: 'answers' },
+      payload => {
+        const row = payload.new;
+        if (row.question_index === current) {
+          const li = document.createElement('li');
+          li.textContent = `${row.user_name} — ${row.answer}`;
+          liveList.prepend(li);
+        }
+      }
+    )
+    .subscribe();
 
   render();
 </script>
