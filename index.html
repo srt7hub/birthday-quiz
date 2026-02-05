@@ -136,6 +136,11 @@
       color: var(--text);
     }
 
+    .btn-accent {
+      background: var(--accent);
+      color: #022c22;
+    }
+
     .question-counter {
       color: var(--primary);
       font-size: 14px;
@@ -189,7 +194,7 @@
     }
 
     .live-answers {
-      max-height: 300px;
+      max-height: 350px;
       overflow-y: auto;
     }
 
@@ -222,6 +227,7 @@
 
     .live-answer-item.correct .live-answer-text {
       color: var(--accent);
+      font-weight: 600;
     }
 
     .status-badge {
@@ -396,6 +402,37 @@
     .connection-status.offline {
       background: var(--wrong);
     }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .reveal-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      animation: fadeIn 0.4s ease;
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 8px;
+      margin: 12px 0;
+      flex-wrap: wrap;
+    }
+
+    .stat-pill {
+      background: rgba(255,255,255,0.05);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .stat-pill.correct {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--accent);
+    }
   </style>
 </head>
 
@@ -430,15 +467,24 @@
       <div class="question-counter">Вопрос <span id="qCurrent">1</span> из <span id="qTotal">4</span></div>
       <h2 id="question"></h2>
       <div id="answers"></div>
-      <button id="nextBtn" class="btn" style="margin-top: 16px; display: none;" onclick="nextQuestion()">
-        Следующий вопрос ➡
-      </button>
+      
+      <!-- Buttons that appear after answer -->
+      <div id="postAnswerButtons" style="display: none; margin-top: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <button id="showAnswersBtn" class="btn btn-secondary" onclick="revealAnswers()">
+          👀 Посмотреть ответы всех
+        </button>
+        <button id="nextBtn" class="btn" onclick="nextQuestion()" style="display: none;">
+          Следующий вопрос ➡
+        </button>
+      </div>
     </div>
 
-    <div class="card">
-      <h3>👀 Кто ответил (<span id="answerCount">0</span>)</h3>
+    <!-- Hidden until reveal -->
+    <div id="answersCard" class="card hidden">
+      <h3>📊 Результаты</h3>
+      <div id="statsContainer" class="stats-bar"></div>
       <div id="liveAnswers" class="live-answers">
-        <div class="empty-state">Пока никто не ответил...</div>
+        <div class="empty-state">Загрузка...</div>
       </div>
     </div>
   </div>
@@ -473,7 +519,7 @@
   };
 
   // ===============================
-  // STATE (with localStorage persistence)
+  // STATE
   // ===============================
   function loadState() {
     const saved = localStorage.getItem('quizState');
@@ -484,6 +530,7 @@
       userName: '',
       currentQuestion: 0,
       hasAnswered: false,
+      answersRevealed: false,
       userAnswers: [],
       finished: false
     };
@@ -494,7 +541,8 @@
   }
 
   let state = loadState();
-  let channel = null; // Supabase realtime channel
+  let channel = null;
+  let allAnswers = [];
 
   // ===============================
   // DATA
@@ -531,7 +579,6 @@
 
   const supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
 
-  // Check saved state on load
   window.addEventListener('load', () => {
     if (state.userName) {
       if (state.finished) {
@@ -567,6 +614,7 @@
     state.userName = name;
     state.currentQuestion = 0;
     state.hasAnswered = false;
+    state.answersRevealed = false;
     state.userAnswers = [];
     state.finished = false;
     saveState();
@@ -581,6 +629,7 @@
       userName: '',
       currentQuestion: 0,
       hasAnswered: false,
+      answersRevealed: false,
       userAnswers: [],
       finished: false
     };
@@ -594,25 +643,32 @@
   function initGame() {
     document.getElementById('qTotal').textContent = questions.length;
     
-    // Unsubscribe from previous channel if exists
     if (channel) {
       supabaseClient.removeChannel(channel);
     }
     
     renderQuestion();
-    subscribeToAnswers();
+    
+    // If returning to answered question, restore state
+    if (state.hasAnswered) {
+      restoreAnsweredState();
+    }
   }
 
   function renderQuestion() {
-    state.hasAnswered = false;
-    saveState();
-    
+    allAnswers = [];
     const q = questions[state.currentQuestion];
+    
     document.getElementById('qCurrent').textContent = state.currentQuestion + 1;
     document.getElementById('question').textContent = q.text;
-    document.getElementById('nextBtn').style.display = 'none';
     
-    // Render answers
+    // Reset UI
+    document.getElementById('postAnswerButtons').style.display = 'none';
+    document.getElementById('showAnswersBtn').style.display = 'block';
+    document.getElementById('nextBtn').style.display = 'none';
+    document.getElementById('answersCard').classList.add('hidden');
+    
+    // Render answer buttons
     const container = document.getElementById('answers');
     container.innerHTML = '';
     
@@ -624,11 +680,36 @@
       container.appendChild(btn);
     });
 
-    // Clear live answers UI
-    updateLiveAnswers([]);
+    subscribeToAnswers();
+  }
+
+  function restoreAnsweredState() {
+    // Restore "answered" UI without allowing new answer
+    const q = questions[state.currentQuestion];
+    const buttons = document.querySelectorAll('.answer-btn');
+    const lastAnswer = state.userAnswers[state.userAnswers.length - 1];
     
-    // Load existing answers for this question
-    loadExistingAnswers();
+    buttons.forEach((btn, idx) => {
+      btn.disabled = true;
+      if (idx === q.correct) {
+        btn.classList.add('correct');
+      }
+      if (state.answersRevealed && idx === lastAnswer.questionIndex && !lastAnswer.isCorrect) {
+        btn.classList.add('wrong');
+      }
+      if (idx === lastAnswer.questionIndex) {
+        btn.classList.add('selected');
+      }
+    });
+
+    document.getElementById('postAnswerButtons').style.display = 'flex';
+    
+    if (state.answersRevealed) {
+      document.getElementById('showAnswersBtn').style.display = 'none';
+      document.getElementById('nextBtn').style.display = 'block';
+      document.getElementById('answersCard').classList.remove('hidden');
+      loadExistingAnswers();
+    }
   }
 
   async function submitAnswer(answerIndex, btnElement) {
@@ -638,29 +719,25 @@
     const q = questions[state.currentQuestion];
     const isCorrect = answerIndex === q.correct;
     
-    // Save to state
     state.userAnswers.push({
       questionIndex: state.currentQuestion,
       isCorrect: isCorrect
     });
     saveState();
 
-    // Visual feedback
+    // Visual feedback - only show YOUR result, not correct answer yet
     const buttons = document.querySelectorAll('.answer-btn');
     buttons.forEach((btn, idx) => {
       btn.disabled = true;
-      if (idx === q.correct) {
-        btn.classList.add('correct');
-      } else if (idx === answerIndex && !isCorrect) {
-        btn.classList.add('wrong');
+      if (idx === answerIndex) {
+        btn.classList.add('selected');
+        // Don't show if correct yet!
       }
     });
 
-    btnElement.classList.add('selected');
-
     // Save to Supabase
     try {
-      const { error } = await supabaseClient.from('answers').insert({
+      await supabaseClient.from('answers').insert({
         user_name: state.userName,
         question_index: state.currentQuestion,
         question: q.text,
@@ -668,17 +745,42 @@
         is_correct: isCorrect,
         created_at: new Date().toISOString()
       });
-      
-      if (error) throw error;
     } catch (err) {
       console.error('Failed to save answer:', err);
-      // Still continue - answer is saved locally
     }
 
-    // Show next button after delay
-    setTimeout(() => {
-      document.getElementById('nextBtn').style.display = 'block';
-    }, 800);
+    // Show "reveal" button
+    document.getElementById('postAnswerButtons').style.display = 'flex';
+  }
+
+  async function revealAnswers() {
+    state.answersRevealed = true;
+    saveState();
+
+    const q = questions[state.currentQuestion];
+    
+    // Show correct answer
+    const buttons = document.querySelectorAll('.answer-btn');
+    const lastAnswer = state.userAnswers[state.userAnswers.length - 1];
+    
+    buttons.forEach((btn, idx) => {
+      if (idx === q.correct) {
+        btn.classList.add('correct');
+      }
+      if (idx === lastAnswer.questionIndex && !lastAnswer.isCorrect) {
+        btn.classList.add('wrong');
+      }
+    });
+
+    // Hide reveal button, show next
+    document.getElementById('showAnswersBtn').style.display = 'none';
+    document.getElementById('nextBtn').style.display = 'block';
+    
+    // Show answers card
+    document.getElementById('answersCard').classList.remove('hidden');
+    
+    // Load answers
+    await loadExistingAnswers();
   }
 
   async function loadExistingAnswers() {
@@ -691,66 +793,63 @@
 
       if (error) throw error;
       
-      if (data) {
-        updateLiveAnswers(data);
-      }
+      allAnswers = data || [];
+      updateLiveAnswers();
     } catch (err) {
       console.error('Failed to load answers:', err);
     }
   }
 
-  function updateLiveAnswers(answers) {
+  function updateLiveAnswers() {
     const container = document.getElementById('liveAnswers');
-    const countEl = document.getElementById('answerCount');
+    const statsContainer = document.getElementById('statsContainer');
     
-    countEl.textContent = answers.length;
-    
-    if (answers.length === 0) {
+    if (allAnswers.length === 0) {
       container.innerHTML = '<div class="empty-state">Пока никто не ответил...</div>';
+      statsContainer.innerHTML = '';
       return;
     }
 
-    container.innerHTML = '';
+    // Calculate stats
     const q = questions[state.currentQuestion];
+    const answerCounts = {};
+    let correctCount = 0;
     
-    // Calculate stats for "only one wrong" feature
-    const answerStats = {};
-    answers.forEach(a => {
-      if (!answerStats[a.answer]) answerStats[a.answer] = 0;
-      answerStats[a.answer]++;
+    allAnswers.forEach(a => {
+      answerCounts[a.answer] = (answerCounts[a.answer] || 0) + 1;
+      if (a.is_correct) correctCount++;
     });
 
-    answers.forEach(row => {
+    // Show stats
+    statsContainer.innerHTML = `
+      <div class="stat-pill">Всего ответов: ${allAnswers.length}</div>
+      <div class="stat-pill correct">Правильно: ${correctCount}</div>
+    `;
+
+    // Render list
+    container.innerHTML = '';
+    
+    allAnswers.forEach(row => {
       const div = document.createElement('div');
       div.className = 'live-answer-item';
       if (row.is_correct) div.classList.add('correct');
       
       const isCurrentUser = row.user_name === state.userName;
+      const isUniqueWrong = !row.is_correct && answerCounts[row.answer] === 1;
       
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'live-name';
-      nameSpan.textContent = row.user_name + (isCurrentUser ? ' (ты)' : '');
+      div.innerHTML = `
+        <span class="live-name">${row.user_name} ${isCurrentUser ? '(ты)' : ''}</span>
+        <span class="live-answer-text">
+          ${row.answer}
+          ${isUniqueWrong ? '<span class="highlight-wrong">единственный!</span>' : ''}
+        </span>
+      `;
       
-      const answerSpan = document.createElement('span');
-      answerSpan.className = 'live-answer-text';
-      answerSpan.textContent = row.answer;
-      
-      // Highlight if only one person chose this (and it's wrong)
-      if (!row.is_correct && answerStats[row.answer] === 1) {
-        const badge = document.createElement('span');
-        badge.className = 'highlight-wrong';
-        badge.textContent = 'единственный!';
-        answerSpan.appendChild(badge);
-      }
-      
-      div.appendChild(nameSpan);
-      div.appendChild(answerSpan);
       container.appendChild(div);
     });
   }
 
   function subscribeToAnswers() {
-    // Create new channel with unique name
     const channelName = `answers-q${state.currentQuestion}-${Date.now()}`;
     
     channel = supabaseClient
@@ -765,18 +864,13 @@
         },
         payload => {
           console.log('Realtime update:', payload);
-          const row = payload.new;
-          
-          // Add to list if not already there
-          const existing = document.querySelector(`[data-answer-id="${row.id}"]`);
-          if (!existing) {
-            // Reload all answers to ensure consistency
+          // Only update if answers are revealed
+          if (state.answersRevealed) {
             loadExistingAnswers();
           }
         }
       )
       .subscribe((status) => {
-        console.log('Subscription status:', status);
         const connStatus = document.getElementById('connStatus');
         if (status === 'SUBSCRIBED') {
           connStatus.classList.remove('offline');
@@ -788,16 +882,16 @@
 
   function nextQuestion() {
     state.currentQuestion++;
+    state.hasAnswered = false;
+    state.answersRevealed = false;
     saveState();
     
     if (state.currentQuestion < questions.length) {
-      // Unsubscribe from current channel before moving
       if (channel) {
         supabaseClient.removeChannel(channel);
         channel = null;
       }
       renderQuestion();
-      subscribeToAnswers();
     } else {
       state.finished = true;
       saveState();
@@ -812,14 +906,12 @@
     showScreen('resultsScreen');
     
     try {
-      // Fetch all answers for scoring
       const { data: allAnswers, error } = await supabaseClient
         .from('answers')
         .select('*');
 
       if (error) throw error;
 
-      // Calculate scores per user
       const scores = {};
       allAnswers.forEach(ans => {
         if (!scores[ans.user_name]) {
@@ -829,7 +921,6 @@
         if (ans.is_correct) scores[ans.user_name].correct++;
       });
 
-      // Convert to array and sort
       const leaderboard = Object.entries(scores)
         .map(([name, stats]) => ({
           name,
@@ -843,8 +934,6 @@
       renderLeaderboard(leaderboard);
     } catch (err) {
       console.error('Failed to load results:', err);
-      document.getElementById('resultsList').innerHTML = 
-        '<div class="empty-state">Ошибка загрузки результатов</div>';
     }
   }
 
@@ -854,7 +943,6 @@
     
     if (top3.length === 0) return;
     
-    // Reorder for visual: 2nd, 1st, 3rd
     const order = [1, 0, 2];
     const places = ['place-2', 'place-1', 'place-3'];
     const emojis = ['🥈', '🥇', '🥉'];
@@ -907,9 +995,11 @@
     if (e.key === 'Enter') startGame();
   });
 
-  // Periodic refresh as fallback (every 3 seconds)
+  // Periodic refresh as fallback
   setInterval(() => {
-    if (state.userName && !state.finished && document.getElementById('gameScreen').classList.contains('active')) {
+    if (state.userName && !state.finished && 
+        document.getElementById('gameScreen').classList.contains('active') &&
+        state.answersRevealed) {
       loadExistingAnswers();
     }
   }, 3000);
