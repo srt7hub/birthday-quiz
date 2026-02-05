@@ -2,25 +2,31 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Birthday Quiz</title>
 
-  <!-- Telegram Mini App API -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     :root {
-      --bg: #0f172a;
-      --card: #111827;
+      --bg: #0a0a0f;
+      --card: #151520;
       --accent: #22c55e;
       --wrong: #ef4444;
-      --primary: #3b82f6;
+      --primary: #6366f1;
+      --primary-hover: #818cf8;
       --text: #f9fafb;
+      --text-muted: #9ca3af;
+      --gold: #fbbf24;
+      --silver: #e5e7eb;
+      --bronze: #b45309;
     }
 
-    * { box-sizing: border-box; }
+    * { 
+      box-sizing: border-box; 
+      -webkit-tap-highlight-color: transparent;
+    }
 
     body {
       margin: 0;
@@ -28,101 +34,444 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
     }
 
     .app {
-      max-width: 520px;
+      max-width: 480px;
       margin: 0 auto;
+    }
+
+    .screen {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .card {
       background: var(--card);
-      border-radius: 18px;
-      padding: 18px;
+      border-radius: 24px;
+      padding: 24px;
       margin-bottom: 16px;
+      border: 1px solid rgba(255,255,255,0.05);
     }
 
-    h2 { margin: 0 0 16px; }
+    h1 { 
+      font-size: 28px; 
+      margin: 0 0 8px;
+      background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
 
-    .answer-btn {
-      width: 100%;
-      padding: 16px;
-      margin: 10px 0;
+    h2 { 
+      margin: 0 0 20px; 
+      font-size: 22px;
+      line-height: 1.4;
+    }
+
+    h3 {
+      margin: 0 0 16px;
       font-size: 18px;
-      border-radius: 14px;
-      border: none;
-      background: #1f2937;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Login Screen */
+    .login-input {
+      width: 100%;
+      padding: 18px 20px;
+      font-size: 18px;
+      border-radius: 16px;
+      border: 2px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.05);
       color: var(--text);
-      cursor: pointer;
+      margin-bottom: 16px;
+      outline: none;
+      transition: all 0.2s;
     }
 
-    .answer-btn:disabled { opacity: 0.6; }
-
-    .correct {
-      background: var(--accent) !important;
-      color: #022c22;
-      font-weight: bold;
+    .login-input:focus {
+      border-color: var(--primary);
+      background: rgba(255,255,255,0.08);
     }
 
-    .wrong {
-      background: var(--wrong) !important;
-      color: #450a0a;
-      font-weight: bold;
+    .login-input::placeholder {
+      color: var(--text-muted);
     }
 
-    #nextBtn {
+    .btn {
       width: 100%;
-      padding: 16px;
+      padding: 18px;
       font-size: 18px;
-      border-radius: 14px;
+      border-radius: 16px;
       border: none;
       background: var(--primary);
       color: white;
-      margin-top: 12px;
-      display: none;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
     }
 
-    ul { padding-left: 18px; }
-    li { margin: 6px 0; }
+    .btn:active {
+      transform: scale(0.98);
+      background: var(--primary-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: var(--text);
+    }
+
+    /* Question Screen */
+    .question-counter {
+      color: var(--primary);
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .answer-btn {
+      width: 100%;
+      padding: 18px;
+      margin: 8px 0;
+      font-size: 17px;
+      border-radius: 16px;
+      border: 2px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: left;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .answer-btn:active:not(:disabled) {
+      transform: scale(0.98);
+      background: rgba(255,255,255,0.08);
+    }
+
+    .answer-btn:disabled { 
+      opacity: 0.7;
+      cursor: default;
+    }
+
+    .answer-btn.correct {
+      background: rgba(34, 197, 94, 0.2) !important;
+      border-color: var(--accent) !important;
+      color: var(--accent);
+    }
+
+    .answer-btn.wrong {
+      background: rgba(239, 68, 68, 0.2) !important;
+      border-color: var(--wrong) !important;
+      color: var(--wrong);
+    }
+
+    .answer-btn.selected {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--primary);
+    }
+
+    /* Live Answers */
+    .live-answers {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .live-answer-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .live-answer-item:last-child {
+      border-bottom: none;
+    }
+
+    .live-name {
+      font-weight: 600;
+    }
+
+    .live-answer-text {
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    .live-answer-item.correct .live-answer-text {
+      color: var(--accent);
+    }
+
+    .status-badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.1);
+      margin-left: 8px;
+    }
+
+    .status-badge.correct {
+      background: rgba(34, 197, 94, 0.2);
+      color: var(--accent);
+    }
+
+    /* Results */
+    .podium {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 12px;
+      margin: 24px 0;
+      height: 180px;
+    }
+
+    .podium-place {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .podium-bar {
+      width: 80px;
+      border-radius: 16px 16px 8px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      position: relative;
+      transition: all 0.5s ease;
+    }
+
+    .place-1 .podium-bar {
+      height: 140px;
+      background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
+      box-shadow: 0 8px 32px rgba(251, 191, 36, 0.3);
+    }
+
+    .place-2 .podium-bar {
+      height: 100px;
+      background: linear-gradient(180deg, #e5e7eb 0%, #9ca3af 100%);
+      box-shadow: 0 8px 32px rgba(229, 231, 235, 0.2);
+    }
+
+    .place-3 .podium-bar {
+      height: 80px;
+      background: linear-gradient(180deg, #b45309 0%, #92400e 100%);
+      box-shadow: 0 8px 32px rgba(180, 83, 9, 0.2);
+    }
+
+    .podium-name {
+      font-weight: 700;
+      font-size: 15px;
+      max-width: 90px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .podium-score {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .results-list {
+      margin-top: 20px;
+    }
+
+    .result-item {
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 16px;
+      margin-bottom: 8px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .result-rank {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      margin-right: 16px;
+      background: rgba(255,255,255,0.1);
+    }
+
+    .result-rank.gold { background: rgba(251, 191, 36, 0.2); color: var(--gold); }
+    .result-rank.silver { background: rgba(229, 231, 235, 0.2); color: var(--silver); }
+    .result-rank.bronze { background: rgba(180, 83, 9, 0.2); color: #d97706; }
+
+    .result-info {
+      flex: 1;
+    }
+
+    .result-name {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .result-detail {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .result-score {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .waiting-hint {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 20px;
+      font-size: 15px;
+    }
+
+    .pulse {
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 40px 20px;
+      font-style: italic;
+    }
+
+    .highlight-wrong {
+      background: rgba(239, 68, 68, 0.1);
+      border-radius: 8px;
+      padding: 2px 8px;
+      font-size: 12px;
+      color: var(--wrong);
+      margin-left: 8px;
+    }
   </style>
 </head>
 
 <body>
 <div class="app">
 
-  <div class="card">
-    <h2 id="question"></h2>
-    <div id="answers"></div>
-    <button id="nextBtn" onclick="nextQuestion()">➡ Следующий вопрос</button>
+  <!-- Screen 1: Login -->
+  <div id="loginScreen" class="screen active">
+    <div class="card" style="text-align: center; padding: 40px 24px;">
+      <div style="font-size: 64px; margin-bottom: 16px;">🎉</div>
+      <h1>Викторина</h1>
+      <p style="color: var(--text-muted); margin-bottom: 32px; line-height: 1.6;">
+        Привет! Введи своё имя,<br>чтобы присоединиться к игре
+      </p>
+      <input 
+        type="text" 
+        id="nameInput" 
+        class="login-input" 
+        placeholder="Твоё имя" 
+        maxlength="20"
+        autocomplete="off"
+      />
+      <button class="btn" onclick="startGame()">Начать игру</button>
+    </div>
   </div>
 
-  <div class="card">
-    <h3>👀 Кто как ответил:</h3>
-    <ul id="liveAnswers"></ul>
+  <!-- Screen 2: Game -->
+  <div id="gameScreen" class="screen">
+    <div class="card">
+      <div class="question-counter">Вопрос <span id="qCurrent">1</span> из <span id="qTotal">4</span></div>
+      <h2 id="question"></h2>
+      <div id="answers"></div>
+      <button id="nextBtn" class="btn" style="margin-top: 16px; display: none;" onclick="nextQuestion()">
+        Следующий вопрос ➡
+      </button>
+    </div>
+
+    <div class="card">
+      <h3>👀 Кто ответил (<span id="answerCount">0</span>)</h3>
+      <div id="liveAnswers" class="live-answers">
+        <div class="empty-state">Пока никто не ответил...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen 3: Results -->
+  <div id="resultsScreen" class="screen">
+    <div class="card" style="text-align: center;">
+      <div style="font-size: 48px; margin-bottom: 8px;">🏆</div>
+      <h1>Итоги игры</h1>
+      <p style="color: var(--text-muted); margin-bottom: 8px;">Вот кто знает тебя лучше всех!</p>
+    </div>
+
+    <div class="card">
+      <div id="podium" class="podium"></div>
+      <div id="resultsList" class="results-list"></div>
+    </div>
+
+    <div class="card" style="text-align: center;">
+      <button class="btn btn-secondary" onclick="location.reload()">Играть снова</button>
+    </div>
   </div>
 
 </div>
 
 <script>
   // ===============================
-  // TELEGRAM
+  // CONFIG
   // ===============================
-  const tg = window.Telegram.WebApp;
-  tg.ready();
-  tg.expand();
-
-  const userName = tg.initDataUnsafe?.user?.first_name || 'Гость';
-
-  // ===============================
-  // SUPABASE
-  // ===============================
-  const supabaseClient = supabase.createClient(
-    'https://tbvgqxfirapjfxnsuhff.supabase.co',
-    'sb_publishable_W6Ri_ocuTRQC7gAtDLW0KQ_T2zzIngx'
-  );
+  const CONFIG = {
+    supabaseUrl: 'https://tbvgqxfirapjfxnsuhff.supabase.co',
+    supabaseKey: 'sb_publishable_W6Ri_ocuTRQC7gAtDLW0KQ_T2zzIngx'
+  };
 
   // ===============================
-  // QUESTIONS
+  // STATE
+  // ===============================
+  const state = {
+    userName: '',
+    currentQuestion: 0,
+    hasAnswered: false,
+    userAnswers: [], // { questionIndex, isCorrect }
+    allAnswers: [] // for real-time updates
+  };
+
+  // ===============================
+  // DATA
   // ===============================
   const questions = [
     {
@@ -147,116 +496,312 @@
     }
   ];
 
-  let current = 0;
-  let locked = false;
-
-  const qEl = document.getElementById('question');
-  const aEl = document.getElementById('answers');
-  const nextBtn = document.getElementById('nextBtn');
-  const liveList = document.getElementById('liveAnswers');
-
   // ===============================
-  // LOAD LIVE ANSWERS (ВАЖНО)
+  // INIT
   // ===============================
-  async function loadLiveAnswers() {
-    const { data } = await supabaseClient
-      .from('answers')
-      .select('user_name, answer')
-      .eq('question_index', current)
-      .order('created_at', { ascending: false });
+  const tg = window.Telegram.WebApp;
+  tg.ready();
+  tg.expand();
 
-    liveList.innerHTML = '';
-    data.forEach(row => {
-      const li = document.createElement('li');
-      li.textContent = `${row.user_name} — ${row.answer}`;
-      liveList.appendChild(li);
-    });
+  const supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+
+  // Check saved name
+  const savedName = localStorage.getItem('quizUserName');
+  if (savedName) {
+    state.userName = savedName;
+    showScreen('gameScreen');
+    initGame();
   }
 
   // ===============================
-  // RENDER QUESTION
+  // NAVIGATION
   // ===============================
-  function render() {
-    locked = false;
-    aEl.innerHTML = '';
-    nextBtn.style.display = 'none';
+  function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+  }
 
-    const q = questions[current];
-    qEl.textContent = `❓ ${q.text}`;
+  function startGame() {
+    const input = document.getElementById('nameInput');
+    const name = input.value.trim();
+    
+    if (!name) {
+      input.style.borderColor = 'var(--wrong)';
+      setTimeout(() => input.style.borderColor = '', 300);
+      return;
+    }
 
-    loadLiveAnswers();
+    state.userName = name;
+    localStorage.setItem('quizUserName', name);
+    showScreen('gameScreen');
+    initGame();
+  }
 
+  // ===============================
+  // GAME LOGIC
+  // ===============================
+  function initGame() {
+    document.getElementById('qTotal').textContent = questions.length;
+    renderQuestion();
+    subscribeToAnswers();
+  }
+
+  function renderQuestion() {
+    state.hasAnswered = false;
+    state.allAnswers = [];
+    
+    const q = questions[state.currentQuestion];
+    document.getElementById('qCurrent').textContent = state.currentQuestion + 1;
+    document.getElementById('question').textContent = q.text;
+    document.getElementById('nextBtn').style.display = 'none';
+    
+    // Render answers
+    const container = document.getElementById('answers');
+    container.innerHTML = '';
+    
     q.answers.forEach((text, i) => {
       const btn = document.createElement('button');
       btn.className = 'answer-btn';
       btn.textContent = text;
-      btn.onclick = () => answer(i);
-      aEl.appendChild(btn);
+      btn.onclick = () => submitAnswer(i, btn);
+      container.appendChild(btn);
+    });
+
+    // Clear live answers
+    updateLiveAnswers([]);
+    loadExistingAnswers();
+  }
+
+  async function submitAnswer(answerIndex, btnElement) {
+    if (state.hasAnswered) return;
+    state.hasAnswered = true;
+
+    const q = questions[state.currentQuestion];
+    const isCorrect = answerIndex === q.correct;
+    
+    // Save to state
+    state.userAnswers.push({
+      questionIndex: state.currentQuestion,
+      isCorrect: isCorrect
+    });
+
+    // Visual feedback
+    const buttons = document.querySelectorAll('.answer-btn');
+    buttons.forEach((btn, idx) => {
+      btn.disabled = true;
+      if (idx === q.correct) {
+        btn.classList.add('correct');
+      } else if (idx === answerIndex && !isCorrect) {
+        btn.classList.add('wrong');
+      }
+    });
+
+    btnElement.classList.add('selected');
+
+    // Save to Supabase
+    try {
+      await supabaseClient.from('answers').insert({
+        user_name: state.userName,
+        question_index: state.currentQuestion,
+        question: q.text,
+        answer: q.answers[answerIndex],
+        is_correct: isCorrect,
+        created_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('Failed to save answer:', err);
+    }
+
+    // Show next button only to create "host" feeling or auto-show after delay
+    setTimeout(() => {
+      document.getElementById('nextBtn').style.display = 'block';
+    }, 800);
+  }
+
+  async function loadExistingAnswers() {
+    const { data, error } = await supabaseClient
+      .from('answers')
+      .select('*')
+      .eq('question_index', state.currentQuestion)
+      .order('created_at', { ascending: false });
+
+    if (data) {
+      state.allAnswers = data;
+      updateLiveAnswers(data);
+    }
+  }
+
+  function updateLiveAnswers(answers) {
+    const container = document.getElementById('liveAnswers');
+    const countEl = document.getElementById('answerCount');
+    
+    countEl.textContent = answers.length;
+    
+    if (answers.length === 0) {
+      container.innerHTML = '<div class="empty-state">Пока никто не ответил...</div>';
+      return;
+    }
+
+    container.innerHTML = '';
+    const q = questions[state.currentQuestion];
+    
+    // Group by answer to show stats
+    const answerStats = {};
+    answers.forEach(a => {
+      if (!answerStats[a.answer]) answerStats[a.answer] = 0;
+      answerStats[a.answer]++;
+    });
+
+    answers.forEach(row => {
+      const div = document.createElement('div');
+      div.className = 'live-answer-item';
+      if (row.is_correct) div.classList.add('correct');
+      
+      const isCurrentUser = row.user_name === state.userName;
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'live-name';
+      nameSpan.textContent = row.user_name + (isCurrentUser ? ' (ты)' : '');
+      
+      const answerSpan = document.createElement('span');
+      answerSpan.className = 'live-answer-text';
+      answerSpan.textContent = row.answer;
+      
+      // Add "only one wrong" highlight logic
+      if (!row.is_correct && answerStats[row.answer] === 1) {
+        const badge = document.createElement('span');
+        badge.className = 'highlight-wrong';
+        badge.textContent = 'единственный!';
+        answerSpan.appendChild(badge);
+      }
+      
+      div.appendChild(nameSpan);
+      div.appendChild(answerSpan);
+      container.appendChild(div);
     });
   }
 
-  // ===============================
-  // ANSWER
-  // ===============================
-  async function answer(i) {
-    if (locked) return;
-    locked = true;
-
-    const q = questions[current];
-    const btns = document.querySelectorAll('.answer-btn');
-
-    btns.forEach((b, idx) => {
-      b.disabled = true;
-      if (idx === q.correct) b.classList.add('correct');
-      if (idx === i && i !== q.correct) b.classList.add('wrong');
-    });
-
-    await supabaseClient.from('answers').insert({
-      user_name: userName,
-      question_index: current,
-      question: q.text,
-      answer: q.answers[i],
-      is_correct: i === q.correct
-    });
-
-    nextBtn.style.display = 'block';
+  function subscribeToAnswers() {
+    supabaseClient
+      .channel('live-answers')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'answers' },
+        payload => {
+          const row = payload.new;
+          if (row.question_index === state.currentQuestion) {
+            // Avoid duplicates
+            if (!state.allAnswers.find(a => a.id === row.id)) {
+              state.allAnswers.unshift(row);
+              updateLiveAnswers(state.allAnswers);
+            }
+          }
+        }
+      )
+      .subscribe();
   }
 
-  // ===============================
-  // NEXT QUESTION
-  // ===============================
   function nextQuestion() {
-    current++;
-    if (current < questions.length) {
-      render();
+    state.currentQuestion++;
+    
+    if (state.currentQuestion < questions.length) {
+      renderQuestion();
     } else {
-      qEl.textContent = '🎉 Квиз завершён!';
-      aEl.innerHTML = '';
-      liveList.innerHTML = '';
-      nextBtn.style.display = 'none';
+      showResults();
     }
   }
 
   // ===============================
-  // REAL-TIME SUBSCRIPTION
+  // RESULTS
   // ===============================
-  supabaseClient
-    .channel('live-answers')
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', table: 'answers' },
-      payload => {
-        const row = payload.new;
-        if (row.question_index === current) {
-          const li = document.createElement('li');
-          li.textContent = `${row.user_name} — ${row.answer}`;
-          liveList.prepend(li);
-        }
-      }
-    )
-    .subscribe();
+  async function showResults() {
+    showScreen('resultsScreen');
+    
+    // Fetch all answers for scoring
+    const { data: allAnswers } = await supabaseClient
+      .from('answers')
+      .select('*');
 
-  render();
+    // Calculate scores per user
+    const scores = {};
+    allAnswers.forEach(ans => {
+      if (!scores[ans.user_name]) {
+        scores[ans.user_name] = { correct: 0, total: 0, answers: [] };
+      }
+      scores[ans.user_name].total++;
+      if (ans.is_correct) scores[ans.user_name].correct++;
+      scores[ans.user_name].answers.push(ans);
+    });
+
+    // Convert to array and sort
+    const leaderboard = Object.entries(scores)
+      .map(([name, stats]) => ({
+        name,
+        correct: stats.correct,
+        total: stats.total,
+        accuracy: stats.correct / stats.total
+      }))
+      .sort((a, b) => b.correct - a.correct || b.accuracy - a.accuracy);
+
+    renderPodium(leaderboard.slice(0, 3));
+    renderLeaderboard(leaderboard);
+  }
+
+  function renderPodium(top3) {
+    const container = document.getElementById('podium');
+    container.innerHTML = '';
+    
+    // Reorder for visual: 2nd, 1st, 3rd
+    const order = [1, 0, 2];
+    const places = ['place-2', 'place-1', 'place-3'];
+    const emojis = ['🥈', '🥇', '🥉'];
+    
+    order.forEach((idx, pos) => {
+      const player = top3[idx];
+      if (!player) return;
+      
+      const div = document.createElement('div');
+      div.className = `podium-place ${places[pos]}`;
+      div.innerHTML = `
+        <div class="podium-bar">${emojis[pos]}</div>
+        <div class="podium-name">${player.name}</div>
+        <div class="podium-score">${player.correct}/${player.total}</div>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  function renderLeaderboard(leaderboard) {
+    const container = document.getElementById('resultsList');
+    container.innerHTML = '';
+    
+    leaderboard.forEach((player, idx) => {
+      const div = document.createElement('div');
+      div.className = 'result-item';
+      
+      let rankClass = '';
+      if (idx === 0) rankClass = 'gold';
+      else if (idx === 1) rankClass = 'silver';
+      else if (idx === 2) rankClass = 'bronze';
+      
+      const isCurrentUser = player.name === state.userName;
+      
+      div.innerHTML = `
+        <div class="result-rank ${rankClass}">${idx + 1}</div>
+        <div class="result-info">
+          <div class="result-name">${player.name} ${isCurrentUser ? '👤' : ''}</div>
+          <div class="result-detail">правильных из ${player.total}</div>
+        </div>
+        <div class="result-score">${player.correct}</div>
+      `;
+      
+      container.appendChild(div);
+    });
+  }
+
+  // Enter key support
+  document.getElementById('nameInput')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') startGame();
+  });
 </script>
 
 </body>
