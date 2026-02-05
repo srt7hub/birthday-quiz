@@ -58,8 +58,17 @@
 
     .answer-btn:disabled { opacity: 0.6; }
 
-    .correct { background: var(--accent) !important; color: #022c22; }
-    .wrong { background: var(--wrong) !important; color: #450a0a; }
+    .correct {
+      background: var(--accent) !important;
+      color: #022c22;
+      font-weight: bold;
+    }
+
+    .wrong {
+      background: var(--wrong) !important;
+      color: #450a0a;
+      font-weight: bold;
+    }
 
     #nextBtn {
       width: 100%;
@@ -147,16 +156,35 @@
   const liveList = document.getElementById('liveAnswers');
 
   // ===============================
+  // LOAD LIVE ANSWERS (ВАЖНО)
+  // ===============================
+  async function loadLiveAnswers() {
+    const { data } = await supabaseClient
+      .from('answers')
+      .select('user_name, answer')
+      .eq('question_index', current)
+      .order('created_at', { ascending: false });
+
+    liveList.innerHTML = '';
+    data.forEach(row => {
+      const li = document.createElement('li');
+      li.textContent = `${row.user_name} — ${row.answer}`;
+      liveList.appendChild(li);
+    });
+  }
+
+  // ===============================
   // RENDER QUESTION
   // ===============================
   function render() {
     locked = false;
     aEl.innerHTML = '';
-    liveList.innerHTML = '';
     nextBtn.style.display = 'none';
 
     const q = questions[current];
     qEl.textContent = `❓ ${q.text}`;
+
+    loadLiveAnswers();
 
     q.answers.forEach((text, i) => {
       const btn = document.createElement('button');
@@ -210,7 +238,7 @@
   }
 
   // ===============================
-  // REAL-TIME LIVE ANSWERS
+  // REAL-TIME SUBSCRIPTION
   // ===============================
   supabaseClient
     .channel('live-answers')
