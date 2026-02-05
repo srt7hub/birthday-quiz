@@ -16,43 +16,60 @@
       padding: 20px;
     }
 
-    button {
-      padding: 10px 16px;
+    .answer-btn {
+      display: block;
+      padding: 10px 14px;
+      margin: 8px 0;
       font-size: 16px;
-      margin-right: 10px;
       cursor: pointer;
     }
 
-    button:disabled {
-      opacity: 0.5;
+    .answer-btn:disabled {
+      opacity: 0.6;
       cursor: not-allowed;
     }
 
-    ul {
+    .correct {
+      background-color: #c8f7c5;
+    }
+
+    .wrong {
+      background-color: #f7c5c5;
+    }
+
+    #nextBtn {
       margin-top: 20px;
+      padding: 10px 16px;
+      font-size: 16px;
+      display: none;
     }
   </style>
 </head>
 <body>
 
-  <h2>❓ Вопрос: Кофе или Чай?</h2>
+<h2 id="question"></h2>
 
-  <button id="btn-coffee" onclick="sendAnswer('Кофе')">☕ Кофе</button>
-  <button id="btn-tea" onclick="sendAnswer('Чай')">🍵 Чай</button>
+<div id="answers"></div>
 
-  <h3>📊 Ответы в реальном времени:</h3>
-  <ul id="answers"></ul>
+<button id="nextBtn" onclick="nextQuestion()">➡ Следующий вопрос</button>
+
+<hr />
+
+<h3>📊 Ответы в реальном времени:</h3>
+<ul id="realtime"></ul>
 
 <script>
   // ===============================
-  // 📱 TELEGRAM INIT
+  // TELEGRAM
   // ===============================
   const tg = window.Telegram.WebApp;
   tg.ready();
-  tg.expand(); // разворачиваем на весь экран
+  tg.expand();
+
+  const userName = tg.initDataUnsafe?.user?.first_name || 'Гость';
 
   // ===============================
-  // 🔑 SUPABASE
+  // SUPABASE
   // ===============================
   const SUPABASE_URL = 'https://tbvgqxfirapjfxnsuhff.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_W6Ri_ocuTRQC7gAtDLW0KQ_T2zzIngx';
@@ -63,87 +80,124 @@
   );
 
   // ===============================
-  // 👤 ПОЛЬЗОВАТЕЛЬ
+  // ВОПРОСЫ
   // ===============================
-  let userName = 'Гость';
-
-  if (tg.initDataUnsafe?.user) {
-    userName = tg.initDataUnsafe.user.first_name;
-  }
-
-  // ===============================
-  // 🔒 БЛОКИРОВКА
-  // ===============================
-  const btnCoffee = document.getElementById('btn-coffee');
-  const btnTea = document.getElementById('btn-tea');
-
-  if (localStorage.getItem('hasAnswered') === 'true') {
-    disableButtons();
-  }
-
-  function disableButtons() {
-    btnCoffee.disabled = true;
-    btnTea.disabled = true;
-  }
-
-  // ===============================
-  // 📤 ОТПРАВКА ОТВЕТА
-  // ===============================
-  async function sendAnswer(answer) {
-    if (localStorage.getItem('hasAnswered') === 'true') return;
-
-    disableButtons();
-    localStorage.setItem('hasAnswered', 'true');
-
-    const { error } = await supabaseClient
-      .from('answers')
-      .insert({
-        user_name: userName,
-        answer: answer
-      });
-
-    if (error) {
-      alert('Ошибка отправки, смотри Console');
-      console.error(error);
+  const questions = [
+    {
+      text: 'Кем я хотела стать в детстве?',
+      answers: ['Врачом', 'Ветеринаром', 'Учителем', 'Миллионершей'],
+      correct: 1
+    },
+    {
+      text: 'Мой рост?',
+      answers: ['159', '160', '161', '162'],
+      correct: 2
+    },
+    {
+      text: 'Кто мой краш?',
+      answers: ['Дима Масленников', 'Ваня Дмитриенко', 'Павел Прилучный', 'Фадис Идрисов'],
+      correct: 0
+    },
+    {
+      text: 'Откуда шрам на лбу?',
+      answers: [
+        'Упала с забора',
+        'Неудачно попали камнем',
+        'Упала с велосипеда',
+        'Упала с качелек'
+      ],
+      correct: 2
     }
-  }
+  ];
+
+  let currentQuestion = 0;
+  let answered = false;
+
+  const questionEl = document.getElementById('question');
+  const answersEl = document.getElementById('answers');
+  const nextBtn = document.getElementById('nextBtn');
 
   // ===============================
-  // 📥 ЗАГРУЗКА
+  // РЕНДЕР ВОПРОСА
   // ===============================
-  async function loadAnswers() {
-    const { data } = await supabaseClient
-      .from('answers')
-      .select('*')
-      .order('created_at', { ascending: false });
+  function renderQuestion() {
+    answered = false;
+    localStorage.removeItem('hasAnswered');
+    nextBtn.style.display = 'none';
+    answersEl.innerHTML = '';
 
-    render(data);
-  }
+    const q = questions[currentQuestion];
+    questionEl.textContent = `❓ ${q.text}`;
 
-  function render(data) {
-    const list = document.getElementById('answers');
-    list.innerHTML = '';
+    q.answers.forEach((text, index) => {
+      const btn = document.createElement('button');
+      btn.className = 'answer-btn';
+      btn.textContent = text;
 
-    data.forEach(row => {
-      const li = document.createElement('li');
-      li.textContent = `${row.user_name}: ${row.answer}`;
-      list.appendChild(li);
+      btn.onclick = () => selectAnswer(index, btn);
+      answersEl.appendChild(btn);
     });
   }
 
   // ===============================
-  // 🔴 REAL-TIME
+  // ВЫБОР ОТВЕТА
+  // ===============================
+  async function selectAnswer(index, btn) {
+    if (answered) return;
+    answered = true;
+    localStorage.setItem('hasAnswered', 'true');
+
+    const q = questions[currentQuestion];
+
+    document.querySelectorAll('.answer-btn').forEach((b, i) => {
+      b.disabled = true;
+      if (i === q.correct) b.classList.add('correct');
+      if (i === index && i !== q.correct) b.classList.add('wrong');
+    });
+
+    nextBtn.style.display = 'block';
+
+    // сохраняем ответ
+    await supabaseClient.from('answers').insert({
+      user_name: userName,
+      question: q.text,
+      answer: q.answers[index],
+      is_correct: index === q.correct
+    });
+  }
+
+  // ===============================
+  // СЛЕДУЮЩИЙ ВОПРОС
+  // ===============================
+  function nextQuestion() {
+    currentQuestion++;
+    if (currentQuestion < questions.length) {
+      renderQuestion();
+    } else {
+      questionEl.textContent = '🎉 Квиз завершён!';
+      answersEl.innerHTML = '<p>Спасибо за участие 💖</p>';
+      nextBtn.style.display = 'none';
+    }
+  }
+
+  // ===============================
+  // REAL-TIME
   // ===============================
   supabaseClient
-    .channel('answers-realtime')
+    .channel('answers-live')
     .on(
       'postgres_changes',
       { event: 'INSERT', table: 'answers' },
-      () => loadAnswers()
+      payload => {
+        const li = document.createElement('li');
+        li.textContent = `${payload.new.user_name}: ${payload.new.answer}`;
+        document.getElementById('realtime').prepend(li);
+      }
     )
     .subscribe();
 
-  loadAnswers();
+  // старт
+  renderQuestion();
 </script>
 
 </body>
