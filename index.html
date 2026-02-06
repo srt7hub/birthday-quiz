@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Birthday Quiz</title>
+  <title>А ты меня хорошо знаешь?</title>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -86,7 +86,7 @@
       font-weight: 600;
     }
 
-    .login-input {
+    .login-input, .text-input {
       width: 100%;
       padding: 18px 20px;
       font-size: 18px;
@@ -99,12 +99,12 @@
       transition: all 0.2s;
     }
 
-    .login-input:focus {
+    .login-input:focus, .text-input:focus {
       border-color: var(--primary);
       background: rgba(255,255,255,0.08);
     }
 
-    .login-input::placeholder {
+    .login-input::placeholder, .text-input::placeholder {
       color: var(--text-muted);
     }
 
@@ -148,6 +148,13 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       margin-bottom: 8px;
+    }
+
+    .question-image {
+      width: 100%;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
     }
 
     .answer-btn {
@@ -223,6 +230,9 @@
     .live-answer-text {
       color: var(--text-muted);
       font-size: 15px;
+      text-align: right;
+      flex: 1;
+      margin-left: 12px;
     }
 
     .live-answer-item.correct .live-answer-text {
@@ -433,6 +443,41 @@
       background: rgba(34, 197, 94, 0.15);
       color: var(--accent);
     }
+
+    .hero-image {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid var(--primary);
+      margin-bottom: 20px;
+    }
+
+    .text-answer-item {
+      background: rgba(255,255,255,0.03);
+      padding: 16px;
+      border-radius: 16px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .text-answer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .text-answer-author {
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .text-answer-content {
+      color: var(--text);
+      line-height: 1.5;
+      font-size: 16px;
+    }
   </style>
 </head>
 
@@ -442,12 +487,17 @@
 <div class="app">
 
   <!-- Screen 1: Login -->
-  <div id="loginScreen" class="screen">
+  <div id="loginScreen" class="screen active">
     <div class="card" style="text-align: center; padding: 40px 24px;">
-      <div style="font-size: 64px; margin-bottom: 16px;">🎉</div>
-      <h1>Викторина</h1>
+      <img src="https://raw.githubusercontent.com/srt7hub/birthday-quiz/main/images/hero.png" 
+           alt="Birthday" 
+           class="hero-image"
+           onerror="this.style.display='none'">
+      <div style="font-size: 48px; margin-bottom: 16px;">🎂</div>
+      <h1>А ты меня<br>хорошо знаешь?</h1>
       <p style="color: var(--text-muted); margin-bottom: 32px; line-height: 1.6;">
-        Привет! Введи своё имя,<br>чтобы присоединиться к игре
+        Викторина ко дню рождения!<br>
+        Проверим, кто меня знает лучше всех
       </p>
       <input 
         type="text" 
@@ -464,12 +514,13 @@
   <!-- Screen 2: Game -->
   <div id="gameScreen" class="screen">
     <div class="card">
-      <div class="question-counter">Вопрос <span id="qCurrent">1</span> из <span id="qTotal">4</span></div>
+      <div class="question-counter">Вопрос <span id="qCurrent">1</span> из <span id="qTotal">14</span></div>
       <h2 id="question"></h2>
+      <div id="questionImageContainer"></div>
       <div id="answers"></div>
       
       <!-- Buttons that appear after answer -->
-      <div id="postAnswerButtons" style="display: none; margin-top: 16px; display: flex; flex-direction: column; gap: 12px;">
+      <div id="postAnswerButtons" style="display: none; margin-top: 16px; flex-direction: column; gap: 12px;">
         <button id="showAnswersBtn" class="btn btn-secondary" onclick="revealAnswers()">
           👀 Посмотреть ответы всех
         </button>
@@ -481,7 +532,7 @@
 
     <!-- Hidden until reveal -->
     <div id="answersCard" class="card hidden">
-      <h3>📊 Результаты</h3>
+      <h3 id="resultsTitle">📊 Результаты</h3>
       <div id="statsContainer" class="stats-bar"></div>
       <div id="liveAnswers" class="live-answers">
         <div class="empty-state">Загрузка...</div>
@@ -494,7 +545,7 @@
     <div class="card" style="text-align: center;">
       <div style="font-size: 48px; margin-bottom: 8px;">🏆</div>
       <h1>Итоги игры</h1>
-      <p style="color: var(--text-muted); margin-bottom: 8px;">Вот кто знает тебя лучше всех!</p>
+      <p style="color: var(--text-muted); margin-bottom: 8px;">Вот кто знает меня лучше всех!</p>
     </div>
 
     <div class="card">
@@ -545,34 +596,79 @@
   let allAnswers = [];
 
   // ===============================
-  // DATA
+  // QUESTIONS DATA
   // ===============================
   const questions = [
+    {
+      text: 'Как зовут моих маму и папу?',
+      answers: ['Сәриә, Марат', 'Сания, Мәҡсүт', 'Сулпан, Максим', 'Сәлимә, Морат'],
+      correct: 1
+    },
+    {
+      text: 'Кто мой краш?',
+      image: 'https://raw.githubusercontent.com/srt7hub/birthday-quiz/main/images/q2.png',
+      answers: ['Дима Масленников', 'Ваня Дмитриенко', 'Павел Прилучный', 'Фадис Идрисов'],
+      correct: 0
+    },
+    {
+      text: 'Откуда у меня шрам на лбу?',
+      answers: ['Упала с забора', 'Неудачно попали камнем', 'Упала с велосипеда', 'Упала с качелек'],
+      correct: 2
+    },
     {
       text: 'Кем я хотела стать в детстве?',
       answers: ['Врачом', 'Ветеринаром', 'Учителем', 'Миллионершей'],
       correct: 1
     },
     {
-      text: 'Где я на этом фото?',
-      image: 'https://raw.githubusercontent.com/srt7hub/birthday-quiz/main/images/q2.png',
-      answers: ['Тайланд', 'Бали', 'Вьетнам', 'Ауылда'],
-      correct: 2
+      text: 'Мои скрытые таланты',
+      type: 'text',
+      placeholder: 'Напиши, какие таланты у меня есть...'
     },
     {
-      text: 'Мой рост?',
+      text: 'Мой любимый напиток',
+      answers: ['Ҡымыҙ', 'Ҡәһүә', 'Апельсиновый сок', 'Манго-смузи'],
+      correct: 3
+    },
+    {
+      text: 'Где я ни разу не была?',
+      answers: ['Храм', 'Идрисовская пещера', 'Концерт Полины Гагариной', 'Цирк'],
+      correct: 3
+    },
+    {
+      text: 'Что может выбесить меня быстрее всего?',
+      answers: ['Скучные люди', 'Упоминание имени одного человека', 'Ничего', 'Опоздание'],
+      correct: 3
+    },
+    {
+      text: 'Мой рост',
       answers: ['159', '160', '161', '162'],
       correct: 2
     },
     {
-      text: 'Кто мой краш?',
-      answers: ['Дима Масленников', 'Ваня Дмитриенко', 'Павел Прилучный', 'Фадис Идрисов'],
+      text: 'Сколько детей в моей семье?',
+      answers: ['3', '4', '5', '6'],
+      correct: 2
+    },
+    {
+      text: 'Мои любимые цветы',
+      answers: ['Тюльпаны', 'Кактусы', 'Розы', 'Кустовые розы'],
+      correct: 3
+    },
+    {
+      text: 'Какую фразу я говорю, когда всё пошло не по плану?',
+      answers: ['«Бывает, тормош»', '«Всё, что ни делается — к лучшему»', '«Я так и знала»'],
       correct: 0
     },
     {
-      text: 'Откуда шрам на лбу?',
-      answers: ['Упала с забора', 'Камень', 'Велосипед', 'Качели'],
-      correct: 2
+      text: 'Что я считаю своим самым большим red flag\'ом?',
+      answers: ['Если его зовут Айбулат', 'Работает вахтовым методом', 'Блогер', 'Не держит обещания'],
+      correct: 3
+    },
+    {
+      text: 'За что меня можно любить бесконечно, даже если я бешу?',
+      type: 'text',
+      placeholder: 'Напиши свой вариант...'
     }
   ];
 
@@ -667,42 +763,87 @@
     document.getElementById('qCurrent').textContent = state.currentQuestion + 1;
     document.getElementById('question').textContent = q.text;
     
+    // Handle image
+    const imgContainer = document.getElementById('questionImageContainer');
+    imgContainer.innerHTML = '';
+    if (q.image) {
+      const img = document.createElement('img');
+      img.src = q.image;
+      img.className = 'question-image';
+      img.alt = 'Question image';
+      imgContainer.appendChild(img);
+    }
+    
+    // Reset UI
     document.getElementById('postAnswerButtons').style.display = 'none';
     document.getElementById('showAnswersBtn').style.display = 'block';
     document.getElementById('nextBtn').style.display = 'none';
     document.getElementById('answersCard').classList.add('hidden');
+    document.getElementById('resultsTitle').textContent = q.type === 'text' ? '💬 Ответы участников' : '📊 Результаты';
     
+    // Render answers or text input
     const container = document.getElementById('answers');
     container.innerHTML = '';
     
-    q.answers.forEach((text, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'answer-btn';
-      btn.textContent = text;
-      btn.onclick = () => submitAnswer(i, btn);
-      container.appendChild(btn);
-    });
+    if (q.type === 'text') {
+      // Text input question
+      const input = document.createElement('textarea');
+      input.className = 'text-input';
+      input.placeholder = q.placeholder || 'Введи свой ответ...';
+      input.rows = 3;
+      input.id = 'textAnswerInput';
+      container.appendChild(input);
+      
+      const submitBtn = document.createElement('button');
+      submitBtn.className = 'btn';
+      submitBtn.textContent = 'Отправить ответ';
+      submitBtn.onclick = () => submitTextAnswer(input.value);
+      container.appendChild(submitBtn);
+    } else {
+      // Multiple choice
+      q.answers.forEach((text, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'answer-btn';
+        btn.textContent = text;
+        btn.onclick = () => submitAnswer(i, btn);
+        container.appendChild(btn);
+      });
+    }
 
     subscribeToAnswers();
   }
 
   function restoreAnsweredState() {
     const q = questions[state.currentQuestion];
-    const buttons = document.querySelectorAll('.answer-btn');
-    const lastAnswer = state.userAnswers[state.userAnswers.length - 1];
+    const container = document.getElementById('answers');
     
-    buttons.forEach((btn, idx) => {
-      btn.disabled = true;
-      if (idx === q.correct) {
-        btn.classList.add('correct');
+    if (q.type === 'text') {
+      // For text questions, just disable input
+      const input = document.getElementById('textAnswerInput');
+      const btn = container.querySelector('.btn');
+      if (input) {
+        input.disabled = true;
+        input.value = 'Ответ отправлен';
       }
-      if (state.answersRevealed && idx === lastAnswer.questionIndex && !lastAnswer.isCorrect) {
-        btn.classList.add('wrong');
-      }
-      if (idx === lastAnswer.questionIndex) {
-        btn.classList.add('selected');
-      }
-    });
+      if (btn) btn.disabled = true;
+    } else {
+      // Multiple choice
+      const buttons = document.querySelectorAll('.answer-btn');
+      const lastAnswer = state.userAnswers[state.userAnswers.length - 1];
+      
+      buttons.forEach((btn, idx) => {
+        btn.disabled = true;
+        if (idx === q.correct) {
+          btn.classList.add('correct');
+        }
+        if (state.answersRevealed && idx === lastAnswer?.questionIndex && !lastAnswer?.isCorrect) {
+          btn.classList.add('wrong');
+        }
+        if (idx === lastAnswer?.questionIndex) {
+          btn.classList.add('selected');
+        }
+      });
+    }
 
     document.getElementById('postAnswerButtons').style.display = 'flex';
     
@@ -723,7 +864,8 @@
     
     state.userAnswers.push({
       questionIndex: state.currentQuestion,
-      isCorrect: isCorrect
+      isCorrect: isCorrect,
+      answerText: q.answers[answerIndex]
     });
     saveState();
 
@@ -751,23 +893,68 @@
     document.getElementById('postAnswerButtons').style.display = 'flex';
   }
 
+  async function submitTextAnswer(text) {
+    if (state.hasAnswered) return;
+    
+    const trimmed = text.trim();
+    if (!trimmed) {
+      const input = document.getElementById('textAnswerInput');
+      input.style.borderColor = 'var(--wrong)';
+      setTimeout(() => input.style.borderColor = '', 300);
+      return;
+    }
+    
+    state.hasAnswered = true;
+    
+    state.userAnswers.push({
+      questionIndex: state.currentQuestion,
+      isCorrect: null, // Text answers don't have correct/incorrect
+      answerText: trimmed
+    });
+    saveState();
+
+    const input = document.getElementById('textAnswerInput');
+    const btn = document.querySelector('#answers .btn');
+    input.disabled = true;
+    btn.disabled = true;
+    btn.textContent = 'Отправлено!';
+
+    try {
+      await supabaseClient.from('answers').insert({
+        user_name: state.userName,
+        question_index: state.currentQuestion,
+        question: questions[state.currentQuestion].text,
+        answer: trimmed,
+        is_correct: null,
+        created_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('Failed to save answer:', err);
+    }
+
+    document.getElementById('postAnswerButtons').style.display = 'flex';
+  }
+
   async function revealAnswers() {
     state.answersRevealed = true;
     saveState();
 
     const q = questions[state.currentQuestion];
     
-    const buttons = document.querySelectorAll('.answer-btn');
-    const lastAnswer = state.userAnswers[state.userAnswers.length - 1];
-    
-    buttons.forEach((btn, idx) => {
-      if (idx === q.correct) {
-        btn.classList.add('correct');
-      }
-      if (idx === lastAnswer.questionIndex && !lastAnswer.isCorrect) {
-        btn.classList.add('wrong');
-      }
-    });
+    if (q.type !== 'text') {
+      // Show correct answer for multiple choice
+      const buttons = document.querySelectorAll('.answer-btn');
+      const lastAnswer = state.userAnswers[state.userAnswers.length - 1];
+      
+      buttons.forEach((btn, idx) => {
+        if (idx === q.correct) {
+          btn.classList.add('correct');
+        }
+        if (idx === lastAnswer?.questionIndex && !lastAnswer?.isCorrect) {
+          btn.classList.add('wrong');
+        }
+      });
+    }
 
     document.getElementById('showAnswersBtn').style.display = 'none';
     document.getElementById('nextBtn').style.display = 'block';
@@ -797,6 +984,7 @@
   function updateLiveAnswers() {
     const container = document.getElementById('liveAnswers');
     const statsContainer = document.getElementById('statsContainer');
+    const q = questions[state.currentQuestion];
     
     if (allAnswers.length === 0) {
       container.innerHTML = '<div class="empty-state">Пока никто не ответил...</div>';
@@ -804,7 +992,30 @@
       return;
     }
 
-    const q = questions[state.currentQuestion];
+    // For text questions, show different UI
+    if (q.type === 'text') {
+      statsContainer.innerHTML = `<div class="stat-pill">Всего ответов: ${allAnswers.length}</div>`;
+      
+      container.innerHTML = '';
+      allAnswers.forEach(row => {
+        const div = document.createElement('div');
+        div.className = 'text-answer-item';
+        
+        const isCurrentUser = row.user_name === state.userName;
+        
+        div.innerHTML = `
+          <div class="text-answer-header">
+            <span class="text-answer-author">${row.user_name} ${isCurrentUser ? '(ты)' : ''}</span>
+          </div>
+          <div class="text-answer-content">${escapeHtml(row.answer)}</div>
+        `;
+        
+        container.appendChild(div);
+      });
+      return;
+    }
+
+    // Multiple choice stats
     const answerCounts = {};
     let correctCount = 0;
     
@@ -838,6 +1049,12 @@
       
       container.appendChild(div);
     });
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   function subscribeToAnswers() {
@@ -905,18 +1122,20 @@
       const scores = {};
       allAnswers.forEach(ans => {
         if (!scores[ans.user_name]) {
-          scores[ans.user_name] = { correct: 0, total: 0 };
+          scores[ans.user_name] = { correct: 0, total: 0, textAnswers: 0 };
         }
         scores[ans.user_name].total++;
-        if (ans.is_correct) scores[ans.user_name].correct++;
+        if (ans.is_correct === true) scores[ans.user_name].correct++;
+        if (ans.is_correct === null) scores[ans.user_name].textAnswers++;
       });
 
       const leaderboard = Object.entries(scores)
         .map(([name, stats]) => ({
           name,
           correct: stats.correct,
-          total: stats.total,
-          accuracy: stats.correct / stats.total
+          total: stats.total - stats.textAnswers, // Only count choice questions for score
+          textAnswers: stats.textAnswers,
+          accuracy: stats.total > 0 ? stats.correct / (stats.total - stats.textAnswers || 1) : 0
         }))
         .sort((a, b) => b.correct - a.correct || b.accuracy - a.accuracy);
 
@@ -966,12 +1185,13 @@
       else if (idx === 2) rankClass = 'bronze';
       
       const isCurrentUser = player.name === state.userName;
+      const textBonus = player.textAnswers > 0 ? ` (+${player.textAnswers} текстовых)` : '';
       
       div.innerHTML = `
         <div class="result-rank ${rankClass}">${idx + 1}</div>
         <div class="result-info">
           <div class="result-name">${player.name} ${isCurrentUser ? '👤' : ''}</div>
-          <div class="result-detail">правильных из ${player.total}</div>
+          <div class="result-detail">правильных из ${player.total}${textBonus}</div>
         </div>
         <div class="result-score">${player.correct}</div>
       `;
@@ -997,5 +1217,3 @@
 
 </body>
 </html>
-
-
