@@ -567,17 +567,7 @@
       text: 'Откуда шрам на лбу?',
       answers: ['Упала с забора', 'Камень', 'Велосипед', 'Качели'],
       correct: 2
-    },
-    {
-      text: 'Как зовут маму и папу?',
-      answers: ['Сәриә, Марат', 'САНИЯ, МӘҠСҮТ', 'Сулпан, Максим', 'Сәлимә, Морат'],
-      correct: 1
-    },
-    {
-      text: 'Любимый напиток?',
-      answers: ['ҡымыҙ', 'ҡәһүә', 'апельсиновый сок', 'манго смузи'],
-      correct: 3
-    },
+    }
   ];
 
   // ===============================
@@ -659,7 +649,6 @@
     
     renderQuestion();
     
-    // If returning to answered question, restore state
     if (state.hasAnswered) {
       restoreAnsweredState();
     }
@@ -672,13 +661,11 @@
     document.getElementById('qCurrent').textContent = state.currentQuestion + 1;
     document.getElementById('question').textContent = q.text;
     
-    // Reset UI
     document.getElementById('postAnswerButtons').style.display = 'none';
     document.getElementById('showAnswersBtn').style.display = 'block';
     document.getElementById('nextBtn').style.display = 'none';
     document.getElementById('answersCard').classList.add('hidden');
     
-    // Render answer buttons
     const container = document.getElementById('answers');
     container.innerHTML = '';
     
@@ -694,7 +681,6 @@
   }
 
   function restoreAnsweredState() {
-    // Restore "answered" UI without allowing new answer
     const q = questions[state.currentQuestion];
     const buttons = document.querySelectorAll('.answer-btn');
     const lastAnswer = state.userAnswers[state.userAnswers.length - 1];
@@ -735,17 +721,14 @@
     });
     saveState();
 
-    // Visual feedback - only show YOUR result, not correct answer yet
     const buttons = document.querySelectorAll('.answer-btn');
     buttons.forEach((btn, idx) => {
       btn.disabled = true;
       if (idx === answerIndex) {
         btn.classList.add('selected');
-        // Don't show if correct yet!
       }
     });
 
-    // Save to Supabase
     try {
       await supabaseClient.from('answers').insert({
         user_name: state.userName,
@@ -759,7 +742,6 @@
       console.error('Failed to save answer:', err);
     }
 
-    // Show "reveal" button
     document.getElementById('postAnswerButtons').style.display = 'flex';
   }
 
@@ -769,7 +751,6 @@
 
     const q = questions[state.currentQuestion];
     
-    // Show correct answer
     const buttons = document.querySelectorAll('.answer-btn');
     const lastAnswer = state.userAnswers[state.userAnswers.length - 1];
     
@@ -782,14 +763,11 @@
       }
     });
 
-    // Hide reveal button, show next
     document.getElementById('showAnswersBtn').style.display = 'none';
     document.getElementById('nextBtn').style.display = 'block';
     
-    // Show answers card
     document.getElementById('answersCard').classList.remove('hidden');
     
-    // Load answers
     await loadExistingAnswers();
   }
 
@@ -820,7 +798,6 @@
       return;
     }
 
-    // Calculate stats
     const q = questions[state.currentQuestion];
     const answerCounts = {};
     let correctCount = 0;
@@ -830,13 +807,11 @@
       if (a.is_correct) correctCount++;
     });
 
-    // Show stats
     statsContainer.innerHTML = `
       <div class="stat-pill">Всего ответов: ${allAnswers.length}</div>
       <div class="stat-pill correct">Правильно: ${correctCount}</div>
     `;
 
-    // Render list
     container.innerHTML = '';
     
     allAnswers.forEach(row => {
@@ -874,7 +849,6 @@
         },
         payload => {
           console.log('Realtime update:', payload);
-          // Only update if answers are revealed
           if (state.answersRevealed) {
             loadExistingAnswers();
           }
@@ -1017,4 +991,3 @@
 
 </body>
 </html>
-
